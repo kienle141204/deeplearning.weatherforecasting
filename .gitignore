@@ -22,3 +22,6 @@ test0.py
 test1.py
 data1.csv 
 checkpoints/
+
+*.zip
+*.csv

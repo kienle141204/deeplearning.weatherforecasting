@@ -7,11 +7,13 @@ from utils.timefeatures import time_features
 
 class WeatherDataset(Dataset):
     def __init__(self, root_path: str="./data/data.csv", flag="train", size=None, 
-                 grid_size=(16, 16), timeenc=0, freq="h"):
+                 grid_size=(16, 16), timeenc=0, freq="h", features=True, target="t2m"):
         self.root_path = root_path
         self.timeenc = timeenc
         self.freq = freq
         self.flag = flag
+        self.features = features
+        self.target = target
         if size is None:
             self.seq_len = 32
             self.pred_len = 32
@@ -57,8 +59,8 @@ class WeatherDataset(Dataset):
         df["d2m"] = df["d2m"] - 273.15
         
         col_names = [c for c in df.columns if c not in ['valid_time', 'latitude', 'longitude', 'number']]
-        # print("Columns used for model:", col_names)
         
+        # print("Columns used for model:", col_names)
         std_cols = ["t2m", "d2m", "u10", "v10"]
         minmax_cols = ["msl"]
         robust_cols = ["tp"]
@@ -66,6 +68,9 @@ class WeatherDataset(Dataset):
         df[std_cols] = self.scaler_std.fit_transform(df[std_cols])
         df[minmax_cols] = self.scaler_minmax.fit_transform(df[minmax_cols])
         df[robust_cols] = self.scaler_robust.fit_transform(df[robust_cols])
+
+        if not self.features:
+            col_names = [self.target]
 
         num_grids = len(df) // (self.grid_size[0] * self.grid_size[1])
         data = df[col_names].values[:num_grids * self.grid_size[0] * self.grid_size[1]].reshape(
@@ -87,7 +92,7 @@ class WeatherDataset(Dataset):
         elif self.flag == "test":
             data = data[train_size + val_size:]
             timestamps = timestamps[train_size + val_size:]
-        
+        # print(col_names) 
         return data, col_names, timestamps
 
     def _get_temporal_features(self, timestamps):

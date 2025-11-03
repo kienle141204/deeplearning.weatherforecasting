@@ -6,7 +6,9 @@ def data_provider(args, flag="train"):
         root_path=args.data_path,
         flag=flag,
         size=(args.seq_len, args.pred_len),
-        grid_size=args.grid_size
+        grid_size=args.grid_size,
+        features=args.features,
+        target=args.target
     )
     shuffle = True if flag == "train" else False
     data_loader = DataLoader(

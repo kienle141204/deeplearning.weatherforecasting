@@ -175,11 +175,11 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
         
-        mae, mse, rmse= metric(preds, trues)
-        print('mse:{}, mae:{}, rmse:{}'.format(mse, mae, rmse))
+        mae, mse, rmse, mape= metric(preds, trues)
+        print('mse:{}, mae:{}, rmse:{}, mape: {}'.format(mse, mae, rmse, mape))
         f = open("result_long_term_forecast.txt", 'a')
         f.write(setting + "  \n")
-        f.write('mse:{}, mae:{}'.format(mse, mae))
+        f.write('mse:{}, mae:{}, rmse:{}, mape: {}'.format(mse, mae, rmse, mape))
         f.write('\n')
         f.write('\n')
         f.close()

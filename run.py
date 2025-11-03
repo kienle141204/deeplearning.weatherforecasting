@@ -18,9 +18,8 @@ def main():
     # parser.add_argument('--data', type=str, required=True, default='custom', help='dataset type')
     parser.add_argument('--root_path', type=str, default='./data/data.csv', help='root path of the data file')
     parser.add_argument('--data_path', type=str, default='./data/data.csv', help='data csv file')
-    parser.add_argument('--features', type=str, default='M',
-                        help='forecasting task, options:[M, S, MS]; M:multivariate predict multivariate, S:univariate predict univariate, MS:multivariate predict univariate')
-    parser.add_argument('--target', type=str, default='OT', help='target feature in S or MS task')
+    parser.add_argument('--features', action='store_false' , default=True, help='')
+    parser.add_argument('--target', type=str, default='t2m', help='target feature in S or MS task')
     parser.add_argument('--freq', type=str, default='h',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
@@ -42,14 +41,14 @@ def main():
     # SwinLSTM parameters
     # parser.add_argument('--input_channels', default=1, type=int, help='Number of input image channels')
     parser.add_argument('--input_img_size', default=16, type=int, help='Input image size')
-    parser.add_argument('--patch_size', default=2, type=int, help='Patch size of input images')
+    parser.add_argument('--patch_size', default=1, type=int, help='Patch size of input images')
     parser.add_argument('--embed_dim', default=128, type=int, help='Patch embedding dimension')
     parser.add_argument('--depths', default=[12], type=int, help='Depth of Swin Transformer layer for SwinLSTM-B')
     parser.add_argument('--depths_down', default=[2, 6], type=int, help='Downsample of SwinLSTM-D')
     parser.add_argument('--depths_up', default=[6, 2], type=int, help='Upsample of SwinLSTM-D')
     parser.add_argument('--heads_number', default=[4, 8], type=int,
                         help='Number of attention heads in different layers')
-    parser.add_argument('--window_size', default=4, type=int, help='Window size of Swin Transformer layer')
+    parser.add_argument('--window_size', default=2, type=int, help='Window size of Swin Transformer layer')
     parser.add_argument('--drop_rate', default=0., type=float, help='Dropout rate')
     parser.add_argument('--attn_drop_rate', default=0., type=float, help='Attention dropout rate')
     parser.add_argument('--drop_path_rate', default=0.1, type=float, help='Stochastic depth rate')
