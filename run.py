@@ -3,8 +3,17 @@ import argparse
 import argparse
 from exp.exp_long_term_forecasting import Exp_Long_Term_Forecasting
 import torch
+import warnings
+import random
+import numpy as np
+
+warnings.filterwarnings('ignore')
 
 def main():
+    seed = 2025
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
     parser = argparse.ArgumentParser(description='Run Weather Forecasting Experiment')
     # basic config
     parser.add_argument('--grid_size', type=tuple, default=(16, 16), help='grid size of the data')
@@ -33,7 +42,7 @@ def main():
     # ConvLSTM parameters
     parser.add_argument('--input_channels', type=int, default=7, help='input dimension')
     parser.add_argument('--hidden_channels', type=int, nargs='+', default=[64, 128], help='hidden dimensions for ConvLSTM layers')
-    parser.add_argument('--kernel_size', type=int, nargs='+', default=5, help='kernel size for ConvLSTM layers')
+    parser.add_argument('--kernel_size', type=int, default=5, help='kernel size for ConvLSTM layers')
     parser.add_argument('--num_layers', type=int, default=2, help='number of ConvLSTM layers')
     parser.add_argument('--bias', action='store_true', help='whether to use bias in ConvLSTM layers', default=False)
     parser.add_argument('--batch_first', action='store_true', help='whether batch is first dimension', default=True)
@@ -64,6 +73,7 @@ def main():
     parser.add_argument('--loss', type=str, default='MSE', help='loss function')
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
+    parser.add_argument('--lr_patience', type=int, default=2)
 
     # GPU
     parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
@@ -78,15 +88,21 @@ def main():
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_sl{}_pl{}_{}_lr{}_ep{}'.format(
+            setting = '{}_sl{}_pl{}_lr{}_ep{}'.format(
                         args.model,
                         # args.data,
                         args.seq_len,
                         # args.label_len,
                         args.pred_len,
-                        ii,
                         args.learning_rate,
                         args.train_epochs)
+            if args.model == 'ConvLSTM':
+                setting += '_ks{}_nl{}'.format(
+                    args.kernel_size,
+                    args.num_layers
+                )
+            else:
+                setting += ''
 
             exp = Exp_Long_Term_Forecasting(args)
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
@@ -102,15 +118,21 @@ def main():
             torch.cuda.empty_cache()
     else:
         ii = 0
-        setting = '{}_sl{}_pl{}_{}_lr{}_ep{}'.format(
-                    args.model,
-                    # args.data,
-                    args.seq_len,
-                    # args.label_len,
-                    args.pred_len,
-                    ii,
-                    args.learning_rate,
-                    args.train_epochs)
+        setting = '{}_sl{}_pl{}_lr{}_ep{}'.format(
+                        args.model,
+                        # args.data,
+                        args.seq_len,
+                        # args.label_len,
+                        args.pred_len,
+                        args.learning_rate,
+                        args.train_epochs)
+        if args.model == 'ConvLSTM':
+            setting += '_ks{}_nl{}'.format(
+                args.kernel_size,
+                args.num_layers
+            )
+        else:
+            setting += ''
 
         exp = Exp_Long_Term_Forecasting(args)
         # print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))

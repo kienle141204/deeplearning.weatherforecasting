@@ -7,7 +7,8 @@ from utils.timefeatures import time_features
 
 class WeatherDataset(Dataset):
     def __init__(self, root_path: str="./data/data.csv", flag="train", size=None, 
-                 grid_size=(16, 16), timeenc=0, freq="h", features=True, target="t2m"):
+                 grid_size=(16, 16), timeenc=0, freq="h", features=True, target="t2m",
+                 scaler_std=None, scaler_minmax=None, scaler_robust=None):
         self.root_path = root_path
         self.timeenc = timeenc
         self.freq = freq
@@ -22,9 +23,9 @@ class WeatherDataset(Dataset):
             self.pred_len = size[1]
         self.grid_size = grid_size
 
-        self.scaler_std = StandardScaler()
-        self.scaler_minmax = MinMaxScaler()
-        self.scaler_robust = RobustScaler()
+        self.scaler_std = scaler_std if scaler_std is not None else StandardScaler()
+        self.scaler_minmax = scaler_minmax if scaler_minmax is not None else MinMaxScaler()
+        self.scaler_robust = scaler_robust if scaler_robust is not None else RobustScaler()
         
         self.data, self.col_names, self.timestamps = self.__read_data__()
         self.spatial_encoding = self._create_spatial_encoding()
@@ -65,14 +66,26 @@ class WeatherDataset(Dataset):
         minmax_cols = ["msl"]
         robust_cols = ["tp"]
         
-        df[std_cols] = self.scaler_std.fit_transform(df[std_cols])
-        df[minmax_cols] = self.scaler_minmax.fit_transform(df[minmax_cols])
-        df[robust_cols] = self.scaler_robust.fit_transform(df[robust_cols])
+        num_grids = len(df) // (self.grid_size[0] * self.grid_size[1])
+        
+        train_size = int(0.7 * num_grids)
+        val_size = int(0.15 * num_grids)
+        
+        train_rows = train_size * self.grid_size[0] * self.grid_size[1]
+        val_rows = val_size * self.grid_size[0] * self.grid_size[1]
+        
+        if self.flag == "train":
+            self.scaler_std.fit(df[std_cols].iloc[:train_rows])
+            self.scaler_minmax.fit(df[minmax_cols].iloc[:train_rows])
+            self.scaler_robust.fit(df[robust_cols].iloc[:train_rows])
+        
+        df[std_cols] = self.scaler_std.transform(df[std_cols])
+        df[minmax_cols] = self.scaler_minmax.transform(df[minmax_cols])
+        df[robust_cols] = self.scaler_robust.transform(df[robust_cols])
 
         if not self.features:
             col_names = [self.target]
 
-        num_grids = len(df) // (self.grid_size[0] * self.grid_size[1])
         data = df[col_names].values[:num_grids * self.grid_size[0] * self.grid_size[1]].reshape(
             num_grids, self.grid_size[0], self.grid_size[1], -1)
         

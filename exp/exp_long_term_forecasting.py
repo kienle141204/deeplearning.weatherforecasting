@@ -32,7 +32,7 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
     
     def _create_scheduler(self, optimizer):
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=5,
+            optimizer, mode='min', factor=0.5, patience=self.args.lr_patience,
             # verbose=True
         )
         return scheduler

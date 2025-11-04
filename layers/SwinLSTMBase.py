@@ -3,6 +3,10 @@ import torch.nn as nn
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from layers.PatchEmb import PatchEmbed, PatchInflated
 
+import warnings
+
+warnings.filterwarnings('ignore')
+
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super(Mlp, self).__init__()
