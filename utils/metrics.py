@@ -3,9 +3,12 @@ import numpy as np
 def MAE(pred, true):
     return np.mean(np.abs(pred - true))
 
+# def MAPE(pred, true):
+#     mask = true != 0
+#     return np.mean(np.abs((pred[mask] - true[mask])/true[mask]))
+
 def MAPE(pred, true):
-    mask = true != 0
-    return np.mean(np.abs((pred[mask] - true[mask])/true[mask]))
+    return np.mean(np.abs((pred - true) / true))
 
 def MSE(pred, true):
     return np.mean((pred - true) ** 2)

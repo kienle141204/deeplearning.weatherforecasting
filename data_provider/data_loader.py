@@ -84,7 +84,7 @@ class WeatherDataset(Dataset):
         df[robust_cols] = self.scaler_robust.transform(df[robust_cols])
 
         if not self.features:
-            col_names = [self.target]
+            col_names = self.target
 
         data = df[col_names].values[:num_grids * self.grid_size[0] * self.grid_size[1]].reshape(
             num_grids, self.grid_size[0], self.grid_size[1], -1)

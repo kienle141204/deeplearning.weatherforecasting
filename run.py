@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--root_path', type=str, default='./data/data.csv', help='root path of the data file')
     parser.add_argument('--data_path', type=str, default='./data/data.csv', help='data csv file')
     parser.add_argument('--features', action='store_false' , default=True, help='')
-    parser.add_argument('--target', type=str, default='t2m', help='target feature in S or MS task')
+    parser.add_argument('--target', type=str, nargs='+', default=['t2m'], help='target feature in S or MS task')
     parser.add_argument('--freq', type=str, default='h',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
@@ -50,9 +50,9 @@ def main():
     # SwinLSTM parameters
     # parser.add_argument('--input_channels', default=1, type=int, help='Number of input image channels')
     parser.add_argument('--input_img_size', default=16, type=int, help='Input image size')
-    parser.add_argument('--patch_size', default=1, type=int, help='Patch size of input images')
+    parser.add_argument('--patch_size', default=2, type=int, help='Patch size of input images')
     parser.add_argument('--embed_dim', default=128, type=int, help='Patch embedding dimension')
-    parser.add_argument('--depths', default=[12], type=int, help='Depth of Swin Transformer layer for SwinLSTM-B')
+    parser.add_argument('--depths', default=[4], type=int, help='Depth of Swin Transformer layer for SwinLSTM-B')
     parser.add_argument('--depths_down', default=[2, 6], type=int, help='Downsample of SwinLSTM-D')
     parser.add_argument('--depths_up', default=[6, 2], type=int, help='Upsample of SwinLSTM-D')
     parser.add_argument('--heads_number', default=[4, 8], type=int,
@@ -74,6 +74,7 @@ def main():
     parser.add_argument('--lradj', type=str, default='type1', help='adjust learning rate')
     parser.add_argument('--use_amp', action='store_true', help='use automatic mixed precision training', default=False)
     parser.add_argument('--lr_patience', type=int, default=2)
+    parser.add_argument('--early_stop_patience', type=int, default=5)
 
     # GPU
     parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
@@ -102,7 +103,10 @@ def main():
                     args.num_layers
                 )
             else:
-                setting += ''
+                setting += '_ps_{}_depths_{}'.format(
+                    args.patch_size,
+                    args.depths
+                )
 
             exp = Exp_Long_Term_Forecasting(args)
             print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))

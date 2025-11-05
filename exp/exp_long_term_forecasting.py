@@ -27,7 +27,8 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         return data_loader, dataset
     
     def _create_optimizer(self):
-        optimizer = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5) 
+        # optimizer = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5) 
+        optimizer = optim.Adam(self.model.parameters(), lr=self.args.learning_rate) 
         return optimizer
     
     def _create_scheduler(self, optimizer):
@@ -67,7 +68,7 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         scheduler = self._create_scheduler(optimizer)
         criterion = self._create_criterion()
 
-        patience = 3  # Early stopping patience
+        patience = self.args.early_stop_patience  # Early stopping patience
         patience_counter = 0
 
         train_steps = len(train_loader)

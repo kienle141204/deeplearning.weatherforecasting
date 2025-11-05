@@ -1,6 +1,6 @@
 import torch 
 from torch import nn
-from layers.SwinLSTMBase import SwinLSTM
+from layers.SwinLSTM import SwinLSTM
 
 class Model(nn.Module):
     def __init__(self, configs):
@@ -25,19 +25,21 @@ class Model(nn.Module):
 
 
     def forward(self, x):
+        # print(f"Shape x: {x.shape}")
         B, T, C, H, W = x.shape
         states = [None] * sum(self.depths)     
-        outs = []
         for t in range(T):
             frame = x[:, t]                    
             out, states = self.swin_lstm(frame, states)   
-            outs.append(out)
+            # print(out.shape)
 
         # decoder 
         last_input = x[: ,-1]
+        # print(f"Last_input shape: {last_input.shape}")
         predictions = []
         for t in range(self.predict_steps):
             out, states = self.swin_lstm(last_input, states)
+            # print(out.shape)
             predictions.append(out)
             last_input = out
 
