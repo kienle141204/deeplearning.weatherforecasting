@@ -130,6 +130,11 @@ def main():
                         args.pred_len,
                         args.learning_rate,
                         args.train_epochs)
+        if not args.features:
+            setting += '_in_c{}_ft_{}'.format(
+                args.input_channels,
+                args.target
+            )
         if args.model == 'ConvLSTM':
             setting += '_ks{}_nl{}'.format(
                 args.kernel_size,
