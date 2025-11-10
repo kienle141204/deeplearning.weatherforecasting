@@ -60,13 +60,18 @@ class WeatherDataset(Dataset):
         df["d2m"] = df["d2m"] - 273.15
         
         col_names = [c for c in df.columns if c not in ['valid_time', 'latitude', 'longitude', 'number']]
+
+        if not self.features:
+            col_names = self.target
+        # print(col_names)
         
         # print("Columns used for model:", col_names)
-        std_cols = ["t2m", "d2m", "u10", "v10"]
-        minmax_cols = ["msl"]
-        robust_cols = ["tp"]
+        std_cols = [col for col in ["t2m", "d2m", "u10", "v10"] if col in col_names]
+        minmax_cols = [col for col in ["msl"] if col in col_names]
+        robust_cols = [col for col in ["tp"] if col in col_names]
         
         num_grids = len(df) // (self.grid_size[0] * self.grid_size[1])
+        # print(num_grids)
         
         train_size = int(0.7 * num_grids)
         val_size = int(0.15 * num_grids)
@@ -75,16 +80,19 @@ class WeatherDataset(Dataset):
         val_rows = val_size * self.grid_size[0] * self.grid_size[1]
         
         if self.flag == "train":
-            self.scaler_std.fit(df[std_cols].iloc[:train_rows])
-            self.scaler_minmax.fit(df[minmax_cols].iloc[:train_rows])
-            self.scaler_robust.fit(df[robust_cols].iloc[:train_rows])
-        
-        df[std_cols] = self.scaler_std.transform(df[std_cols])
-        df[minmax_cols] = self.scaler_minmax.transform(df[minmax_cols])
-        df[robust_cols] = self.scaler_robust.transform(df[robust_cols])
+            if std_cols:
+                self.scaler_std.fit(df[std_cols].iloc[:train_rows])
+            if minmax_cols:
+                self.scaler_minmax.fit(df[minmax_cols].iloc[:train_rows])
+            if robust_cols:
+                self.scaler_robust.fit(df[robust_cols].iloc[:train_rows])
 
-        if not self.features:
-            col_names = self.target
+        if std_cols and hasattr(self.scaler_std, 'mean_'):  # Check if fitted
+            df[std_cols] = self.scaler_std.transform(df[std_cols])
+        if minmax_cols and hasattr(self.scaler_minmax, 'data_min_'):  # Check if fitted
+            df[minmax_cols] = self.scaler_minmax.transform(df[minmax_cols])
+        if robust_cols and hasattr(self.scaler_robust, 'center_'):  # Check if fitted
+            df[robust_cols] = self.scaler_robust.transform(df[robust_cols])
 
         data = df[col_names].values[:num_grids * self.grid_size[0] * self.grid_size[1]].reshape(
             num_grids, self.grid_size[0], self.grid_size[1], -1)
@@ -168,13 +176,16 @@ class WeatherDataset(Dataset):
         
         df = pd.DataFrame(data, columns=self.col_names)
         
-        std_cols = ["t2m", "d2m", "u10", "v10"]
-        minmax_cols = ["msl"]
-        robust_cols = ["tp"]
+        std_cols = [col for col in ["t2m", "d2m", "u10", "v10"] if col in df.columns]
+        minmax_cols = [col for col in ["msl"] if col in df.columns]
+        robust_cols = [col for col in ["tp"] if col in df.columns]
         
-        df[std_cols] = self.scaler_std.inverse_transform(df[std_cols])
-        df[minmax_cols] = self.scaler_minmax.inverse_transform(df[minmax_cols])
-        df[robust_cols] = self.scaler_robust.inverse_transform(df[robust_cols])
+        if std_cols and hasattr(self.scaler_std, 'mean_'):  # Check if fitted
+            df[std_cols] = self.scaler_std.inverse_transform(df[std_cols])
+        if minmax_cols and hasattr(self.scaler_minmax, 'data_min_'):  # Check if fitted
+            df[minmax_cols] = self.scaler_minmax.inverse_transform(df[minmax_cols])
+        if robust_cols and hasattr(self.scaler_robust, 'center_'):  # Check if fitted
+            df[robust_cols] = self.scaler_robust.inverse_transform(df[robust_cols])
         
         # df["t2m"] = df["t2m"] + 273.15
         # df["d2m"] = df["d2m"] + 273.15

@@ -63,6 +63,10 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         train_loader, train_dataset = self._get_data(flag="train")
         vali_loader, vali_dataset = self._get_data(flag="val")
         test_loader, test_dataset = self._get_data(flag="test")
+        _, seq_x_train, _, _, _, _ = next(iter(train_loader))
+        _, seq_x_test, _, _, _, _ = next(iter(test_loader))
+        print(f"Shape x_train: {seq_x_train.shape}")
+        print(f"Shape x_test: {seq_x_test.shape}")
 
         optimizer = self._create_optimizer()
         scheduler = self._create_scheduler(optimizer)
