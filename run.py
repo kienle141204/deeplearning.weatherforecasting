@@ -52,7 +52,7 @@ def main():
     parser.add_argument('--input_img_size', default=16, type=int, help='Input image size')
     parser.add_argument('--patch_size', default=2, type=int, help='Patch size of input images')
     parser.add_argument('--embed_dim', default=128, type=int, help='Patch embedding dimension')
-    parser.add_argument('--depths', default=[8], type=int, help='Depth of Swin Transformer layer for SwinLSTM-B')
+    parser.add_argument('--depths', default=[2], type=int, help='Depth of Swin Transformer layer for SwinLSTM-B')
     parser.add_argument('--depths_down', default=[2, 6], type=int, help='Downsample of SwinLSTM-D')
     parser.add_argument('--depths_up', default=[6, 2], type=int, help='Upsample of SwinLSTM-D')
     parser.add_argument('--heads_number', default=[4, 8], type=int,
@@ -97,6 +97,11 @@ def main():
                         args.pred_len,
                         args.learning_rate,
                         args.train_epochs)
+            if not args.features:
+                setting += '_in_c{}_ft_{}'.format(
+                    args.input_channels,
+                    args.target
+                )
             if args.model == 'ConvLSTM':
                 setting += '_ks{}_nl{}'.format(
                     args.kernel_size,

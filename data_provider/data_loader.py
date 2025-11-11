@@ -58,6 +58,7 @@ class WeatherDataset(Dataset):
 
         df["t2m"] = df["t2m"] - 273.15  
         df["d2m"] = df["d2m"] - 273.15
+        df["tp"] = df["tp"] * 1000
         
         col_names = [c for c in df.columns if c not in ['valid_time', 'latitude', 'longitude', 'number']]
 
