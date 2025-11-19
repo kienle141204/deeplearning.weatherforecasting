@@ -8,7 +8,7 @@
     --learning_rate 1e-4 \
     --is_training 1 \
     --train_epochs 100 \
-    --seq_len 24 \
+    --his_len 24 \
     --pred_len 24 \
     --lr_patience 2 \
     --input_img_size 16 \

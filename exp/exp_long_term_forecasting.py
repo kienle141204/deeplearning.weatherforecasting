@@ -27,8 +27,8 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         return data_loader, dataset
     
     def _create_optimizer(self):
-        # optimizer = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5) 
-        optimizer = optim.Adam(self.model.parameters(), lr=self.args.learning_rate) 
+        optimizer = optim.Adam(self.model.parameters(), lr=self.args.learning_rate, weight_decay=1e-5) 
+        # optimizer = optim.Adam(self.model.parameters(), lr=self.args.learning_rate) 
         return optimizer
     
     def _create_scheduler(self, optimizer):
@@ -43,6 +43,16 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         return criterion
     
     def vali(self, vali_data, vali_loader, criterion):
+        col_names = vali_data.col_names
+        std_cols = vali_data.std_cols
+        minmax_cols = vali_data.minmax_cols
+        robust_cols = vali_data.robust_cols
+
+        std_cols_indices = [col_names.index(col) for col in std_cols]
+        minmax_cols_indices = [col_names.index(col) for col in minmax_cols] 
+        robust_cols_indices = [col_names.index(col) for col in robust_cols]
+        tcc_cols_indices = [col_names.index(col) for col in col_names if col not in std_cols + minmax_cols + robust_cols]
+
         total_loss = []
         self.model.eval()
         with torch.no_grad():
@@ -53,7 +63,12 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
                 seq_y_mark = seq_y_mark.to(self.device)
 
                 output = self.model(seq_x)
-                loss = criterion(output, seq_y)
+                std_loss = criterion(output[:, :, std_cols_indices, :, :], seq_y[:, :, std_cols_indices, :, :]) if std_cols_indices else 0
+                minmax_loss = criterion(output[:, :, minmax_cols_indices, :, :], seq_y[:, :, minmax_cols_indices, :, :]) if minmax_cols_indices else 0
+                robust_loss = criterion(output[:, :, robust_cols_indices, :, :], seq_y[:, :, robust_cols_indices, :, :]) if robust_cols_indices else 0
+                tcc_loss = criterion(output[:, :, tcc_cols_indices, :, :], seq_y[:, :, tcc_cols_indices, :, :]) if tcc_cols_indices else 0
+
+                loss = std_loss + minmax_loss + robust_loss + tcc_loss
                 total_loss.append(loss.item())
         total_loss = np.average(total_loss)
         self.model.train()
@@ -63,6 +78,17 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         train_loader, train_dataset = self._get_data(flag="train")
         vali_loader, vali_dataset = self._get_data(flag="val")
         test_loader, test_dataset = self._get_data(flag="test")
+
+        col_names = train_dataset.col_names
+        std_cols = train_dataset.std_cols
+        minmax_cols = train_dataset.minmax_cols
+        robust_cols = train_dataset.robust_cols
+
+        std_cols_indices = [col_names.index(col) for col in std_cols]
+        minmax_cols_indices = [col_names.index(col) for col in minmax_cols] 
+        robust_cols_indices = [col_names.index(col) for col in robust_cols]
+        tcc_cols_indices = [col_names.index(col) for col in col_names if col not in std_cols + minmax_cols + robust_cols]
+
         _, seq_x_train, _, _, _, _ = next(iter(train_loader))
         _, seq_x_test, _, _, _, _ = next(iter(test_loader))
         print(f"Shape x_train: {seq_x_train.shape}")
@@ -100,7 +126,14 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
 
                 optimizer.zero_grad()
                 output = self.model(seq_x)
-                loss = criterion(output, seq_y)
+
+                std_loss = criterion(output[:, :, std_cols_indices, :, :], seq_y[:, :, std_cols_indices, :, :]) if std_cols_indices else 0
+                minmax_loss = criterion(output[:, :, minmax_cols_indices, :, :], seq_y[:, :, minmax_cols_indices, :, :]) if minmax_cols_indices else 0
+                robust_loss = criterion(output[:, :, robust_cols_indices, :, :], seq_y[:, :, robust_cols_indices, :, :]) if robust_cols_indices else 0
+                tcc_loss = criterion(output[:, :, tcc_cols_indices, :, :], seq_y[:, :, tcc_cols_indices, :, :]) if tcc_cols_indices else 0
+
+                loss = std_loss + minmax_loss + robust_loss + tcc_loss
+
                 train_loss.append(loss.item())
                 loss.backward()
                 optimizer.step()
@@ -156,15 +189,15 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
                 if self.args.inverse:
                     shape = outputs.shape
                     
-                    batch_size, seq_len, n_features, height, width = shape
+                    batch_size, his_len, n_features, height, width = shape
                     outputs_reshaped = outputs.transpose(0, 1, 3, 4, 2).reshape(-1, n_features)
                     batch_y_reshaped = batch_y.transpose(0, 1, 3, 4, 2).reshape(-1, n_features)
 
                     outputs_inv = test_data.inverse_transform(outputs_reshaped)
                     batch_y_inv = test_data.inverse_transform(batch_y_reshaped)
 
-                    outputs = outputs_inv.reshape(batch_size, seq_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
-                    batch_y = batch_y_inv.reshape(batch_size, seq_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
+                    outputs = outputs_inv.reshape(batch_size, his_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
+                    batch_y = batch_y_inv.reshape(batch_size, his_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
                     
 
                 pred = outputs

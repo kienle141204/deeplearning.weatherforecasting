@@ -16,10 +16,10 @@ class WeatherDataset(Dataset):
         self.features = features
         self.target = target
         if size is None:
-            self.seq_len = 32
+            self.his_len = 32
             self.pred_len = 32
         else:
-            self.seq_len = size[0]
+            self.his_len = size[0]
             self.pred_len = size[1]
         self.grid_size = grid_size
 
@@ -70,6 +70,9 @@ class WeatherDataset(Dataset):
         std_cols = [col for col in ["t2m", "d2m", "u10", "v10"] if col in col_names]
         minmax_cols = [col for col in ["msl"] if col in col_names]
         robust_cols = [col for col in ["tp"] if col in col_names]
+        self.std_cols = std_cols
+        self.minmax_cols = minmax_cols
+        self.robust_cols = robust_cols
         
         num_grids = len(df) // (self.grid_size[0] * self.grid_size[1])
         # print(num_grids)
@@ -133,11 +136,11 @@ class WeatherDataset(Dataset):
         return data_stamp
 
     def __len__(self):
-        return len(self.data) - self.seq_len - self.pred_len + 1
+        return len(self.data) - self.his_len - self.pred_len + 1
 
     def __getitem__(self, index):
         s_begin = index
-        s_end = s_begin + self.seq_len
+        s_end = s_begin + self.his_len
         r_begin = s_end
         r_end = r_begin + self.pred_len
 
@@ -161,9 +164,9 @@ class WeatherDataset(Dataset):
         return index, seq_x, seq_y, seq_x_mark, seq_y_mark, spatial_enc
         
         # return {
-        #     'seq_x': seq_x,              # (seq_len, H, W, C_weather)
+        #     'seq_x': seq_x,              # (his_len, H, W, C_weather)
         #     'seq_y': seq_y,              # (pred_len, H, W, C_weather)
-        #     'seq_x_mark': seq_x_mark,    # (seq_len, D_temporal)
+        #     'seq_x_mark': seq_x_mark,    # (his_len, D_temporal)
         #     'seq_y_mark': seq_y_mark,    # (pred_len, D_temporal)
         #     'spatial_enc': spatial_enc,  # (H, W, D_spatial)
         # }

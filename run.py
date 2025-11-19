@@ -14,6 +14,7 @@ def main():
     random.seed(seed)
     torch.manual_seed(seed)
     np.random.seed(seed)
+
     parser = argparse.ArgumentParser(description='Run Weather Forecasting Experiment')
     # basic config
     parser.add_argument('--grid_size', type=tuple, default=(16, 16), help='grid size of the data')
@@ -34,7 +35,7 @@ def main():
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 
     # forecasting task
-    parser.add_argument('--seq_len', type=int, default=96, help='input sequence length')
+    parser.add_argument('--his_len', type=int, default=96, help='input sequence length')
     parser.add_argument('--label_len', type=int, default=48, help='start token length') # no longer needed in inverted Transformers
     parser.add_argument('--pred_len', type=int, default=96, help='prediction sequence length')
 
@@ -42,10 +43,19 @@ def main():
     # ConvLSTM parameters
     parser.add_argument('--input_channels', type=int, default=7, help='input dimension')
     parser.add_argument('--hidden_channels', type=int, nargs='+', default=[64, 128], help='hidden dimensions for ConvLSTM layers')
+    parser.add_argument('--num_hidden', type=int, default=[64, 64, 64, 64])
     parser.add_argument('--kernel_size', type=int, default=5, help='kernel size for ConvLSTM layers')
     parser.add_argument('--num_layers', type=int, default=2, help='number of ConvLSTM layers')
     parser.add_argument('--bias', action='store_true', help='whether to use bias in ConvLSTM layers', default=False)
     parser.add_argument('--batch_first', action='store_true', help='whether batch is first dimension', default=True)
+    parser.add_argument('--stride', type=int, default=1)
+    parser.add_argument('--layer_norm', type=int, default=1)
+
+    # reverse scheduled sampling (PredRNN)
+    parser.add_argument('--reverse_scheduled_sampling', type=int, default=0)
+    parser.add_argument('--r_sampling_step_1', type=float, default=25000)
+    parser.add_argument('--r_sampling_step_2', type=int, default=50000)
+    parser.add_argument('--r_exp_alpha', type=int, default=5000)
 
     # SwinLSTM parameters
     # parser.add_argument('--input_channels', default=1, type=int, help='Number of input image channels')
@@ -92,7 +102,7 @@ def main():
             setting = '{}_sl{}_pl{}_lr{}_ep{}'.format(
                         args.model,
                         # args.data,
-                        args.seq_len,
+                        args.his_len,
                         # args.label_len,
                         args.pred_len,
                         args.learning_rate,
@@ -130,7 +140,7 @@ def main():
         setting = '{}_sl{}_pl{}_lr{}_ep{}'.format(
                         args.model,
                         # args.data,
-                        args.seq_len,
+                        args.his_len,
                         # args.label_len,
                         args.pred_len,
                         args.learning_rate,
