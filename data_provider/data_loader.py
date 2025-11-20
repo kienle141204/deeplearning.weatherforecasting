@@ -70,9 +70,11 @@ class WeatherDataset(Dataset):
         std_cols = [col for col in ["t2m", "d2m", "u10", "v10"] if col in col_names]
         minmax_cols = [col for col in ["msl"] if col in col_names]
         robust_cols = [col for col in ["tp"] if col in col_names]
+        tcc_cols = [col for col in ["tcc"] if col in col_names]
         self.std_cols = std_cols
         self.minmax_cols = minmax_cols
         self.robust_cols = robust_cols
+        self.tcc_cols = tcc_cols
         
         num_grids = len(df) // (self.grid_size[0] * self.grid_size[1])
         # print(num_grids)
@@ -91,12 +93,14 @@ class WeatherDataset(Dataset):
             if robust_cols:
                 self.scaler_robust.fit(df[robust_cols].iloc[:train_rows])
 
+
         if std_cols and hasattr(self.scaler_std, 'mean_'):  # Check if fitted
             df[std_cols] = self.scaler_std.transform(df[std_cols])
         if minmax_cols and hasattr(self.scaler_minmax, 'data_min_'):  # Check if fitted
             df[minmax_cols] = self.scaler_minmax.transform(df[minmax_cols])
         if robust_cols and hasattr(self.scaler_robust, 'center_'):  # Check if fitted
-            df[robust_cols] = self.scaler_robust.transform(df[robust_cols])
+            df[robust_cols] = self.scaler_robust.transform(df[robust_cols]) 
+
 
         data = df[col_names].values[:num_grids * self.grid_size[0] * self.grid_size[1]].reshape(
             num_grids, self.grid_size[0], self.grid_size[1], -1)

@@ -8,6 +8,8 @@ import copy
 import warnings
 import os 
 from utils.metrics import metric
+from utils.schedule_sampling import reserve_schedule_sampling_exp
+from utils.visualization import visualize_predictions
 
 # Bỏ qua tất cả các cảnh báo
 warnings.filterwarnings('ignore')
@@ -18,8 +20,40 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         
 
     def _build_model(self):
-        model = self.model_dict[self.args.model].Model(self.args).float()
+        # Get dataset info to determine channel groups
+        train_loader, train_dataset = self._get_data(flag='train')
+        col_names = train_dataset.col_names
+        std_cols = train_dataset.std_cols
+        minmax_cols = train_dataset.minmax_cols
+        robust_cols = train_dataset.robust_cols
+        tcc_cols = train_dataset.tcc_cols
+        
+        std_cols_indices = [col_names.index(col) for col in std_cols]
+        minmax_cols_indices = [col_names.index(col) for col in minmax_cols]
+        robust_cols_indices = [col_names.index(col) for col in robust_cols]
+        tcc_cols_indices = [col_names.index(col) for col in tcc_cols]
+        
+        self.args.std_cols_indices = std_cols_indices
+        self.args.minmax_cols_indices = minmax_cols_indices
+        self.args.robust_cols_indices = robust_cols_indices
+        self.args.tcc_cols_indices = tcc_cols_indices
+        
+        self.args.num_std = len(std_cols_indices)
+        self.args.num_minmax = len(minmax_cols_indices)
+        self.args.num_robust = len(robust_cols_indices)
+        self.args.num_tcc = len(tcc_cols_indices)
 
+        # Update input_channels based on actual data
+        _, seq_x, _, seq_x_mark, _, _ = next(iter(train_loader))
+        input_channels = seq_x.shape[2]
+        mark_channels = seq_x_mark.shape[2]
+        total_channels = input_channels + mark_channels
+        
+        # print(f"Detected input channels: {input_channels}, mark channels: {mark_channels}")
+        # print(f"Updating args.input_channels from {self.args.input_channels} to {total_channels}")
+        self.args.input_channels = total_channels
+
+        model = self.model_dict[self.args.model].Model(self.args).float()
         return model
 
     def _get_data(self, flag):
@@ -47,11 +81,12 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         std_cols = vali_data.std_cols
         minmax_cols = vali_data.minmax_cols
         robust_cols = vali_data.robust_cols
+        tcc_cols = vali_data.tcc_cols
 
         std_cols_indices = [col_names.index(col) for col in std_cols]
         minmax_cols_indices = [col_names.index(col) for col in minmax_cols] 
         robust_cols_indices = [col_names.index(col) for col in robust_cols]
-        tcc_cols_indices = [col_names.index(col) for col in col_names if col not in std_cols + minmax_cols + robust_cols]
+        tcc_cols_indices = [col_names.index(col) for col in tcc_cols]
 
         total_loss = []
         self.model.eval()
@@ -62,7 +97,17 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
                 seq_x_mark = seq_x_mark.to(self.device)
                 seq_y_mark = seq_y_mark.to(self.device)
 
-                output = self.model(seq_x)
+                # Prepare input_x with marks (same as train)
+                seq_x_mark_in = seq_x_mark.unsqueeze(-1).unsqueeze(-1)
+                seq_x_mark_in = seq_x_mark_in.repeat(1, 1, 1, seq_x.shape[3], seq_x.shape[4])
+                input_x = torch.cat([seq_x, seq_x_mark_in], dim=2)
+
+                seq_y_mark_in = seq_y_mark.unsqueeze(-1).unsqueeze(-1)
+                seq_y_mark_in = seq_y_mark_in.repeat(1, 1, 1, seq_y.shape[3], seq_y.shape[4])
+                true_timestamp = seq_y_mark_in   
+
+                output = self.model(input_x, true_timestamp=true_timestamp)    
+            
                 std_loss = criterion(output[:, :, std_cols_indices, :, :], seq_y[:, :, std_cols_indices, :, :]) if std_cols_indices else 0
                 minmax_loss = criterion(output[:, :, minmax_cols_indices, :, :], seq_y[:, :, minmax_cols_indices, :, :]) if minmax_cols_indices else 0
                 robust_loss = criterion(output[:, :, robust_cols_indices, :, :], seq_y[:, :, robust_cols_indices, :, :]) if robust_cols_indices else 0
@@ -73,7 +118,8 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         total_loss = np.average(total_loss)
         self.model.train()
         return total_loss
-        
+    
+
     def train(self, setting):
         train_loader, train_dataset = self._get_data(flag="train")
         vali_loader, vali_dataset = self._get_data(flag="val")
@@ -83,16 +129,19 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         std_cols = train_dataset.std_cols
         minmax_cols = train_dataset.minmax_cols
         robust_cols = train_dataset.robust_cols
+        tcc_cols = train_dataset.tcc_cols
 
         std_cols_indices = [col_names.index(col) for col in std_cols]
         minmax_cols_indices = [col_names.index(col) for col in minmax_cols] 
         robust_cols_indices = [col_names.index(col) for col in robust_cols]
-        tcc_cols_indices = [col_names.index(col) for col in col_names if col not in std_cols + minmax_cols + robust_cols]
+        tcc_cols_indices = [col_names.index(col) for col in tcc_cols]
 
-        _, seq_x_train, _, _, _, _ = next(iter(train_loader))
-        _, seq_x_test, _, _, _, _ = next(iter(test_loader))
+        _, seq_x_train, _, seq_x_mark_train, _, _ = next(iter(train_loader))
+        _, seq_x_test, _, seq_x_mark_test, _, _ = next(iter(test_loader))
         print(f"Shape x_train: {seq_x_train.shape}")
         print(f"Shape x_test: {seq_x_test.shape}")
+        # print(f"Shape x_mark_train: {seq_x_mark_train.shape}")
+        # print(f"Shape x_mark_test: {seq_x_mark_test.shape}")
 
         optimizer = self._create_optimizer()
         scheduler = self._create_scheduler(optimizer)
@@ -102,12 +151,20 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         patience_counter = 0
 
         train_steps = len(train_loader)
+        print(f"Train steps: {train_steps}")    
         path = self.args.checkpoints + self.args.model + '/' + setting
         if not os.path.exists(path):
             os.makedirs(path)
 
         best_valid_loss = float('inf')
         best_model = None
+
+        # Prepare args for schedule sampling
+        self.args.img_channel = self.args.input_channels    
+        self.args.input_length = self.args.his_len
+        self.args.total_length = self.args.his_len + self.args.pred_len
+        max_iter = len(train_loader)
+        # print(f"Max iter: {max_iter}")
 
         for epoch in range(self.args.train_epochs):
             iter_count = 0
@@ -116,16 +173,43 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
 
             epoch_start_time = time.time()
             for index, seq_x, seq_y, seq_x_mark, seq_y_mark, sp  in train_loader:
-                iter_count += 1
                 seq_x = seq_x.to(self.device)
                 seq_y = seq_y.to(self.device)
                 seq_x_mark = seq_x_mark.to(self.device)
                 seq_y_mark = seq_y_mark.to(self.device)
+                seq_x_mark = seq_x_mark.unsqueeze(-1).unsqueeze(-1)
+                seq_x_mark = seq_x_mark.repeat(1, 1, 1, seq_x.shape[3], seq_x.shape[4])
 
-                # print(seq_x.shape, seq_y.shape)
+                batch_y_mark_in = seq_y_mark.unsqueeze(-1).unsqueeze(-1)
+                batch_y_mark_in = batch_y_mark_in.repeat(1, 1, 1, seq_y.shape[3], seq_y.shape[4])
+                true_timestamp = batch_y_mark_in 
+
+                input_x = torch.cat([seq_x, seq_x_mark], dim=2)   
+                # print(input_x.shape) 
+
+                # Schedule Sampling
+                real_input_flag = reserve_schedule_sampling_exp(self.args, iter_count, max_iter)
+                
+                # Handle last batch size mismatch
+                current_batch_size = seq_x.shape[0]
+                if real_input_flag.shape[0] != current_batch_size:
+                     real_input_flag = real_input_flag[:current_batch_size]
+
+                real_input_flag = torch.FloatTensor(real_input_flag).to(self.device)
+                
+                batch_size = current_batch_size
+                length = self.args.total_length
+                img_channel = self.args.input_channels
+                h, w = self.args.grid_size
+                
+                real_input_flag = real_input_flag.view(batch_size, length, h, w, img_channel)
+                real_input_flag = real_input_flag.permute(0, 1, 4, 2, 3).contiguous()
+                real_input_flag = real_input_flag.view(batch_size, length, img_channel, h, w)   
 
                 optimizer.zero_grad()
-                output = self.model(seq_x)
+            
+                # Pass mask and future frames (seq_y) to model
+                output = self.model(input_x, mask_true=real_input_flag, true_frames=seq_y, true_timestamp=true_timestamp)
 
                 std_loss = criterion(output[:, :, std_cols_indices, :, :], seq_y[:, :, std_cols_indices, :, :]) if std_cols_indices else 0
                 minmax_loss = criterion(output[:, :, minmax_cols_indices, :, :], seq_y[:, :, minmax_cols_indices, :, :]) if minmax_cols_indices else 0
@@ -172,6 +256,7 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         
         preds = []
         trues = []
+        inputs = []
         self.model.eval()
         with torch.no_grad():
             for i, (index, batch_x, batch_y, batch_x_mark, batch_y_mark, sq) in enumerate(test_loader):
@@ -180,34 +265,54 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
 
                 batch_x_mark = batch_x_mark.float().to(self.device)
                 batch_y_mark = batch_y_mark.float().to(self.device)
+                
+                # Prepare input_x with marks (same as train)
+                batch_x_mark_in = batch_x_mark.unsqueeze(-1).unsqueeze(-1)
+                batch_x_mark_in = batch_x_mark_in.repeat(1, 1, 1, batch_x.shape[3], batch_x.shape[4])
+                input_x = torch.cat([batch_x, batch_x_mark_in], dim=2)
 
-                outputs = self.model(batch_x)
+                batch_y_mark_in = batch_y_mark.unsqueeze(-1).unsqueeze(-1)
+                batch_y_mark_in = batch_y_mark_in.repeat(1, 1, 1, batch_y.shape[3], batch_y.shape[4])
+                true_timestamp = batch_y_mark_in 
+
+                outputs = self.model(input_x, true_timestamp=true_timestamp)
 
                 outputs = outputs.detach().cpu().numpy()
                 batch_y = batch_y.detach().cpu().numpy()
+                batch_x = batch_x.detach().cpu().numpy()
 
                 if self.args.inverse:
                     shape = outputs.shape
+                    batch_size, pred_len, n_features, height, width = shape
                     
-                    batch_size, his_len, n_features, height, width = shape
+                    # Inverse transform for outputs and batch_y
                     outputs_reshaped = outputs.transpose(0, 1, 3, 4, 2).reshape(-1, n_features)
                     batch_y_reshaped = batch_y.transpose(0, 1, 3, 4, 2).reshape(-1, n_features)
 
                     outputs_inv = test_data.inverse_transform(outputs_reshaped)
                     batch_y_inv = test_data.inverse_transform(batch_y_reshaped)
 
-                    outputs = outputs_inv.reshape(batch_size, his_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
-                    batch_y = batch_y_inv.reshape(batch_size, his_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
+                    outputs = outputs_inv.reshape(batch_size, pred_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
+                    batch_y = batch_y_inv.reshape(batch_size, pred_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
                     
+                    # Inverse transform for batch_x (history)
+                    input_shape = batch_x.shape
+                    batch_size, his_len, n_features, height, width = input_shape
+                    batch_x_reshaped = batch_x.transpose(0, 1, 3, 4, 2).reshape(-1, n_features)
+                    batch_x_inv = test_data.inverse_transform(batch_x_reshaped)
+                    batch_x = batch_x_inv.reshape(batch_size, his_len, height, width, n_features).transpose(0, 1, 4, 2, 3)
 
                 pred = outputs
                 true = batch_y
+                input_data = batch_x
 
                 preds.append(pred)
                 trues.append(true)
+                inputs.append(input_data)
         
         preds = np.concatenate(preds, axis=0)
         trues = np.concatenate(trues, axis=0)
+        inputs = np.concatenate(inputs, axis=0)
 
         folder_path = './results/' + setting + '/'
         if not os.path.exists(folder_path):
@@ -221,5 +326,12 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         f.write('\n')
         f.write('\n')
         f.close()
+
+        # Visualization
+        print("\nGenerating visualizations...")
+        vis_folder = os.path.join(folder_path, 'visualizations')
+        visualize_predictions(inputs, preds, trues, vis_folder, prefix=setting.replace('/', '_'))
+        
+        return mae, mse, rmse, mape
 
 

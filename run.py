@@ -33,6 +33,7 @@ def main():
     parser.add_argument('--freq', type=str, default='h',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
+    parser.add_argument('--timeenc', type=int, default=0, help='time encoding, options: [0 - 0, 1 - 1, 2 - 2]') 
 
     # forecasting task
     parser.add_argument('--his_len', type=int, default=96, help='input sequence length')
@@ -40,8 +41,9 @@ def main():
     parser.add_argument('--pred_len', type=int, default=96, help='prediction sequence length')
 
     # model define
+    parser.add_argument('--num_use_heads', type=int, default=1, help='number of heads to use in the output layer')
     # ConvLSTM parameters
-    parser.add_argument('--input_channels', type=int, default=7, help='input dimension')
+    parser.add_argument('--input_channels', type=int, default=8, help='input dimension')
     parser.add_argument('--hidden_channels', type=int, nargs='+', default=[64, 128], help='hidden dimensions for ConvLSTM layers')
     parser.add_argument('--num_hidden', type=int, default=[64, 64, 64, 64])
     parser.add_argument('--kernel_size', type=int, default=5, help='kernel size for ConvLSTM layers')
@@ -53,9 +55,7 @@ def main():
 
     # reverse scheduled sampling (PredRNN)
     parser.add_argument('--reverse_scheduled_sampling', type=int, default=0)
-    parser.add_argument('--r_sampling_step_1', type=float, default=25000)
-    parser.add_argument('--r_sampling_step_2', type=int, default=50000)
-    parser.add_argument('--r_exp_alpha', type=int, default=5000)
+    parser.add_argument('--r_exp_alpha', type=int, default=10) 
 
     # SwinLSTM parameters
     # parser.add_argument('--input_channels', default=1, type=int, help='Number of input image channels')

@@ -15,6 +15,18 @@ class Model(ModelBase):
         self.bias = configs.bias
         self.batch_first = configs.batch_first
         self.predict_steps = configs.pred_len
+        self.configs = configs
+        
+        # Channel groups info
+        self.num_std = getattr(configs, 'num_std', 0)
+        self.num_minmax = getattr(configs, 'num_minmax', 0)
+        self.num_robust = getattr(configs, 'num_robust', 0)
+        self.num_tcc = getattr(configs, 'num_tcc', 0)
+        
+        self.std_indices = getattr(configs, 'std_cols_indices', [])
+        self.minmax_indices = getattr(configs, 'minmax_cols_indices', [])
+        self.robust_indices = getattr(configs, 'robust_cols_indices', [])
+        self.tcc_indices = getattr(configs, 'tcc_cols_indices', [])
         
         cell_list = []
         for i in range(self.num_layers):
@@ -23,69 +35,104 @@ class Model(ModelBase):
         
         self.cell_list = nn.ModuleList(cell_list)
 
-        self.output_conv = nn.Conv2d(
-            in_channels=self.hidden_channels[-1],
-            out_channels=self.input_channels,
-            kernel_size=1,
-            padding=0
-        )
+        # 1 Head for direct output
+        self.conv_last = nn.Conv2d(self.hidden_channels[-1], self.input_channels - 4, kernel_size=1, stride=1, padding=0)
 
-    def forward(self, input_tensor, hidden_state=None):
+        # 4 Heads
+        self.head_std = nn.Conv2d(self.hidden_channels[-1], self.num_std, kernel_size=1, stride=1, padding=0) if self.num_std > 0 else None
+        self.head_minmax = nn.Conv2d(self.hidden_channels[-1], self.num_minmax, kernel_size=1, stride=1, padding=0) if self.num_minmax > 0 else None
+        self.head_robust = nn.Conv2d(self.hidden_channels[-1], self.num_robust, kernel_size=1, stride=1, padding=0) if self.num_robust > 0 else None
+        self.head_tcc = nn.Conv2d(self.hidden_channels[-1], self.num_tcc, kernel_size=1, stride=1, padding=0) if self.num_tcc > 0 else None
+
+    def _apply_heads(self, hidden_state):
+        outputs = []
+        indices = []
+        
+        if self.head_std:
+            outputs.append(self.head_std(hidden_state))
+            indices.extend(self.std_indices)
+        if self.head_minmax:
+            outputs.append(self.head_minmax(hidden_state))
+            indices.extend(self.minmax_indices)
+        if self.head_robust:
+            outputs.append(self.head_robust(hidden_state))
+            indices.extend(self.robust_indices)
+        if self.head_tcc:
+            outputs.append(self.head_tcc(hidden_state))
+            indices.extend(self.tcc_indices)
+            
+        # Reassemble
+        full_output = torch.cat(outputs, dim=1)     
+        sort_idx = torch.argsort(torch.tensor(indices)).to(full_output.device)
+        return full_output[:, sort_idx, :, :]
+
+    def forward(self, frames_past, hidden_state=None, mask_true=None, true_frames=None, true_timestamp=None):
         if not self.batch_first:
-            # (t, b, c, h, w) -> (b, t, c, h, w)
-            input_tensor = input_tensor.permute(1, 0, 2, 3, 4)
+            frames_past = frames_past.permute(1, 0, 2, 3, 4)
 
-        b, _, _, h, w = input_tensor.size()
-
-        # Implement stateful ConvLSTM
+        b, _, _, h, w = frames_past.size()
+        
+        # Initialize hidden states
         if hidden_state is not None:
             raise NotImplementedError()
         else:
-            # Since the init is done in forward. Can send image size here
-            hidden_state = self._init_hidden(batch_size=b,
-                                             image_size=(h, w))
+            hidden_state = self._init_hidden(batch_size=b, image_size=(h, w))
 
-        layer_output_list = []
-        last_state_list = []
-
-        his_len = input_tensor.size(1)
-        cur_layer_input = input_tensor
-
-        for layer_idx in range(self.num_layers):
-
-            h, c = hidden_state[layer_idx]
-            output_inner = []
-            for t in range(his_len):
-                h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
-                                                 cur_state=[h, c])
-                output_inner.append(h)
-
-            layer_output = torch.stack(output_inner, dim=1)
-            cur_layer_input = layer_output
-            
-            hidden_state[layer_idx] = [h, c]
-
-        # decoder
         predictions = []
         
-        last_output = self.output_conv(hidden_state[-1][0])
+        his_len = frames_past.size(1)
+        total_sim_steps = his_len + self.predict_steps
+        # print(f"his_len: {his_len}, total_sim_steps: {total_sim_steps}")
         
-        for t in range(self.predict_steps):
-            predictions.append(last_output)
-            cur_layer_input = last_output
+        x_gen = None
+
+        for t in range(total_sim_steps):
+            if self.configs.reverse_scheduled_sampling:
+                if t == 0:
+                    net = frames_past[:, t]
+                else:
+                    if mask_true is not None and true_frames is not None:
+                        mask = mask_true[:, t]
+                        if t < his_len:
+                            true_frame = frames_past[:, t]
+                        else:
+                            true_frame = true_frames[:, t - his_len]
+                        net = mask * true_frame + (1 - mask) * x_gen
+                    else:
+                        if t < his_len:
+                            net = frames_past[:, t]
+                        else:
+                            net = x_gen
+            else:
+                if t < his_len:
+                    net = frames_past[:, t]
+                else:
+                    net = x_gen 
             
+            # Update LSTM cells
+            cur_layer_input = net
+            # print(f"t: {t}, cur_layer_input shape: {cur_layer_input.shape}")
+            # print(cur_layer_input.shape)
             for layer_idx in range(self.num_layers):
                 h, c = hidden_state[layer_idx]
-                h, c = self.cell_list[layer_idx](
-                    input_tensor=cur_layer_input,
-                    cur_state=[h, c]
-                )
+                h, c = self.cell_list[layer_idx](frames_past=cur_layer_input, cur_state=[h, c])
                 cur_layer_input = h
                 hidden_state[layer_idx] = [h, c]
-            
-            last_output = self.output_conv(hidden_state[-1][0])
+            if self.configs.num_use_heads == 4:
+                x_gen = self._apply_heads(hidden_state[-1][0])
+            else:
+                x_gen = self.conv_last(hidden_state[-1][0])
+            # print(f"x_gen shape: {x_gen.shape}")
+            # print(f"true_timestamp shape: {true_timestamp.shape}")
+            # print(f"x_gen shape after cat: {x_gen.shape}")  
+            if t == his_len - 1:
+                x_gen = torch.cat([x_gen, true_timestamp[:, t+1 - his_len]], dim=1) 
+            if t >= his_len:
+                # print(f"x_gen shape after cat: {x_gen.shape}")
+                predictions.append(x_gen)
+                x_gen = torch.cat([x_gen, true_timestamp[:, t - his_len]], dim=1) 
         
-        predictions = torch.stack(predictions, dim=1)  # (b, predict_steps, c, h, w)
+        predictions = torch.stack(predictions, dim=1)
         
         return predictions
 
