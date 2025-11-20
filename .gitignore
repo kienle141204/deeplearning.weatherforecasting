@@ -25,3 +25,6 @@ checkpoints/
 
 *.zip
 *.csv
+
+results
+results/

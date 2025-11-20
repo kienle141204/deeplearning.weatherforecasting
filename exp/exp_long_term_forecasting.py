@@ -18,6 +18,29 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         
 
     def _build_model(self):
+        # Get dataset info to determine channel groups
+        train_loader, train_dataset = self._get_data(flag='train')
+        col_names = train_dataset.col_names
+        std_cols = train_dataset.std_cols
+        minmax_cols = train_dataset.minmax_cols
+        robust_cols = train_dataset.robust_cols
+        tcc_cols = train_dataset.tcc_cols
+        
+        std_cols_indices = [col_names.index(col) for col in std_cols]
+        minmax_cols_indices = [col_names.index(col) for col in minmax_cols]
+        robust_cols_indices = [col_names.index(col) for col in robust_cols]
+        tcc_cols_indices = [col_names.index(col) for col in tcc_cols]
+        
+        self.args.std_cols_indices = std_cols_indices
+        self.args.minmax_cols_indices = minmax_cols_indices
+        self.args.robust_cols_indices = robust_cols_indices
+        self.args.tcc_cols_indices = tcc_cols_indices
+        
+        self.args.num_std = len(std_cols_indices)
+        self.args.num_minmax = len(minmax_cols_indices)
+        self.args.num_robust = len(robust_cols_indices)
+        self.args.num_tcc = len(tcc_cols_indices)
+
         model = self.model_dict[self.args.model].Model(self.args).float()
 
         return model

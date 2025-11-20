@@ -70,9 +70,12 @@ class WeatherDataset(Dataset):
         std_cols = [col for col in ["t2m", "d2m", "u10", "v10"] if col in col_names]
         minmax_cols = [col for col in ["msl"] if col in col_names]
         robust_cols = [col for col in ["tp"] if col in col_names]
+        tcc_col = [col for col in ["tcc"] if col in col_names]
         self.std_cols = std_cols
         self.minmax_cols = minmax_cols
         self.robust_cols = robust_cols
+        self.tcc_cols = tcc_col
+
         
         num_grids = len(df) // (self.grid_size[0] * self.grid_size[1])
         # print(num_grids)

@@ -49,7 +49,6 @@ class Model(nn.Module):
 
         # Vòng lặp chính
         for t in range(total_sim_steps):
-            
             if t < input_length:
                 net = frames[:, t]
             else:

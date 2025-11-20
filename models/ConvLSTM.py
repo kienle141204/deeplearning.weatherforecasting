@@ -15,6 +15,18 @@ class Model(ModelBase):
         self.bias = configs.bias
         self.batch_first = configs.batch_first
         self.predict_steps = configs.pred_len
+        self.configs = configs
+
+        # Channel groups info
+        self.num_std = getattr(configs, 'num_std', 0)
+        self.num_minmax = getattr(configs, 'num_minmax', 0)
+        self.num_robust = getattr(configs, 'num_robust', 0)
+        self.num_tcc = getattr(configs, 'num_tcc', 0)
+        
+        self.std_indices = getattr(configs, 'std_cols_indices', [])
+        self.minmax_indices = getattr(configs, 'minmax_cols_indices', [])
+        self.robust_indices = getattr(configs, 'robust_cols_indices', [])
+        self.tcc_indices = getattr(configs, 'tcc_cols_indices', [])
         
         cell_list = []
         for i in range(self.num_layers):
@@ -29,6 +41,34 @@ class Model(ModelBase):
             kernel_size=1,
             padding=0
         )
+
+        # 4 Heads
+        self.head_std = nn.Conv2d(self.hidden_channels[-1], self.num_std, kernel_size=1, stride=1, padding=0) if self.num_std > 0 else None
+        self.head_minmax = nn.Conv2d(self.hidden_channels[-1], self.num_minmax, kernel_size=1, stride=1, padding=0) if self.num_minmax > 0 else None
+        self.head_robust = nn.Conv2d(self.hidden_channels[-1], self.num_robust, kernel_size=1, stride=1, padding=0) if self.num_robust > 0 else None
+        self.head_tcc = nn.Conv2d(self.hidden_channels[-1], self.num_tcc, kernel_size=1, stride=1, padding=0) if self.num_tcc > 0 else None
+
+    def _apply_heads(self, hidden_state):
+        outputs = []
+        indices = []
+        
+        if self.head_std:
+            outputs.append(self.head_std(hidden_state))
+            indices.extend(self.std_indices)
+        if self.head_minmax:
+            outputs.append(self.head_minmax(hidden_state))
+            indices.extend(self.minmax_indices)
+        if self.head_robust:
+            outputs.append(self.head_robust(hidden_state))
+            indices.extend(self.robust_indices)
+        if self.head_tcc:
+            outputs.append(self.head_tcc(hidden_state))
+            indices.extend(self.tcc_indices)
+            
+        # Reassemble
+        full_output = torch.cat(outputs, dim=1)     
+        sort_idx = torch.argsort(torch.tensor(indices)).to(full_output.device)
+        return full_output[:, sort_idx, :, :]
 
     def forward(self, input_tensor, hidden_state=None):
         if not self.batch_first:
@@ -45,45 +85,26 @@ class Model(ModelBase):
             hidden_state = self._init_hidden(batch_size=b,
                                              image_size=(h, w))
 
-        layer_output_list = []
-        last_state_list = []
-
-        his_len = input_tensor.size(1)
-        cur_layer_input = input_tensor
-
-        for layer_idx in range(self.num_layers):
-
-            h, c = hidden_state[layer_idx]
-            output_inner = []
-            for t in range(his_len):
-                h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
-                                                 cur_state=[h, c])
-                output_inner.append(h)
-
-            layer_output = torch.stack(output_inner, dim=1)
-            cur_layer_input = layer_output
-            
-            hidden_state[layer_idx] = [h, c]
-
-        # decoder
+        totals_steps = self.configs.his_len + self.configs.pred_len
         predictions = []
-        
-        last_output = self.output_conv(hidden_state[-1][0])
-        
-        for t in range(self.predict_steps):
-            predictions.append(last_output)
-            cur_layer_input = last_output
+        for t in range(totals_steps):
+            if t < self.configs.his_len:
+                x = input_tensor[:, t, :, :, :]
+            else:
+                x = out
             
-            for layer_idx in range(self.num_layers):
-                h, c = hidden_state[layer_idx]
-                h, c = self.cell_list[layer_idx](
-                    input_tensor=cur_layer_input,
-                    cur_state=[h, c]
-                )
-                cur_layer_input = h
-                hidden_state[layer_idx] = [h, c]
+            for i in range(self.num_layers):
+                h, c = hidden_state[i]
+                h, c = self.cell_list[i](x, [h, c])
+                hidden_state[i] = (h, c)
+                x = h
             
-            last_output = self.output_conv(hidden_state[-1][0])
+            if self.configs.num_use_heads == 4:
+                out = self._apply_heads(h)
+            else:
+                out = self.output_conv(h)
+            if t >= self.configs.his_len:
+                predictions.append(out)
         
         predictions = torch.stack(predictions, dim=1)  # (b, predict_steps, c, h, w)
         
