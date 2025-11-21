@@ -70,7 +70,7 @@ class Model(ModelBase):
         sort_idx = torch.argsort(torch.tensor(indices)).to(full_output.device)
         return full_output[:, sort_idx, :, :]
 
-    def forward(self, input_tensor, hidden_state=None):
+    def forward(self, input_tensor, hidden_state=None, mask_true=None, ground_truth=None):
         if not self.batch_first:
             # (t, b, c, h, w) -> (b, t, c, h, w)
             input_tensor = input_tensor.permute(1, 0, 2, 3, 4)
@@ -88,18 +88,26 @@ class Model(ModelBase):
         totals_steps = self.configs.his_len + self.configs.pred_len
         predictions = []
         for t in range(totals_steps):
-            if t < self.configs.his_len:
-                x = input_tensor[:, t, :, :, :]
+            if self.configs.reverse_scheduled_sampling and ground_truth is not None and mask_true is not None:
+                if t < self.configs.his_len:
+                    x = input_tensor[:, t, :, :, :]
+                else:
+                    mask_true_t = mask_true[:, t - self.configs.his_len, :, :, :]
+                    true_x = ground_truth[:, t - self.configs.his_len, :, :, :]
+                    x = mask_true_t * true_x + (1 - mask_true_t) * out
             else:
-                x = out
+                if t < self.configs.his_len:
+                    x = input_tensor[:, t, :, :, :]
+                else:
+                    x = out
             
             for i in range(self.num_layers):
                 h, c = hidden_state[i]
-                h, c = self.cell_list[i](x, [h, c])
-                hidden_state[i] = (h, c)
-                x = h
+                h_new, c_new = self.cell_list[i](x, [h, c])
+                hidden_state[i] = (h_new, c_new)
+                x = h_new
             
-            if self.configs.num_use_heads == 4:
+            if self.configs.use_multi_heads == 4:
                 out = self._apply_heads(h)
             else:
                 out = self.output_conv(h)

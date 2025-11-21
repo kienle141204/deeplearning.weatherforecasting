@@ -33,7 +33,7 @@ def main():
     parser.add_argument('--freq', type=str, default='h',
                         help='freq for time features encoding, options:[s:secondly, t:minutely, h:hourly, d:daily, b:business days, w:weekly, m:monthly], you can also use more detailed freq like 15min or 3h')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
-    parser.add_argument('--num_use_heads', type=int, default=1, help='number of used feature heads')
+    parser.add_argument('--use_multi_heads', type=int, default=1, help='number of used feature heads')
 
     # forecasting task
     parser.add_argument('--his_len', type=int, default=96, help='input sequence length')
@@ -52,8 +52,9 @@ def main():
     parser.add_argument('--stride', type=int, default=1)
     parser.add_argument('--layer_norm', type=int, default=1)
 
-    # reverse scheduled sampling (PredRNN)
+    # scheduled sampling
     parser.add_argument('--reverse_scheduled_sampling', type=int, default=0)
+    parser.add_argument('--scheduled_sampling', type=int, default=0)
     parser.add_argument('--r_sampling_step_1', type=float, default=25000)
     parser.add_argument('--r_sampling_step_2', type=int, default=50000)
     parser.add_argument('--r_exp_alpha', type=int, default=5000)
@@ -100,14 +101,17 @@ def main():
     if args.is_training:
         for ii in range(args.itr):
             # setting record of experiments
-            setting = '{}_sl{}_pl{}_lr{}_ep{}'.format(
+            setting = '{}_sl{}_pl{}_lr{}_ep{}_hd{}_ss{}_mh{}'.format(
                         args.model,
                         # args.data,
                         args.his_len,
                         # args.label_len,
                         args.pred_len,
                         args.learning_rate,
-                        args.train_epochs)
+                        args.train_epochs,
+                        args.hidden_channels,
+                        args.scheduled_sampling,
+                        args.use_multi_heads)
             if not args.features:
                 setting += '_in_c{}_ft_{}'.format(
                     args.input_channels,

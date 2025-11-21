@@ -8,6 +8,7 @@ import copy
 import warnings
 import os 
 from utils.metrics import metric
+from utils.schedule_sampling import schedule_sampling_exp, reserve_schedule_sampling_exp
 
 # Bỏ qua tất cả các cảnh báo
 warnings.filterwarnings('ignore')
@@ -140,6 +141,7 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
             epoch_start_time = time.time()
             for index, seq_x, seq_y, seq_x_mark, seq_y_mark, sp  in train_loader:
                 iter_count += 1
+                mask_true = schedule_sampling_exp(self.args, iter_count, train_steps)
                 seq_x = seq_x.to(self.device)
                 seq_y = seq_y.to(self.device)
                 seq_x_mark = seq_x_mark.to(self.device)
@@ -148,7 +150,7 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
                 # print(seq_x.shape, seq_y.shape)
 
                 optimizer.zero_grad()
-                output = self.model(seq_x)
+                output = self.model(seq_x, mask_true=mask_true, ground_truth=seq_y)
 
                 std_loss = criterion(output[:, :, std_cols_indices, :, :], seq_y[:, :, std_cols_indices, :, :]) if std_cols_indices else 0
                 minmax_loss = criterion(output[:, :, minmax_cols_indices, :, :], seq_y[:, :, minmax_cols_indices, :, :]) if minmax_cols_indices else 0

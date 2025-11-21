@@ -17,28 +17,28 @@ def reserve_schedule_sampling_exp(args, itr, max_iter):
         eta = 0.0
 
     r_random_flip = np.random.random_sample(
-        (args.batch_size, args.input_length))
+        (args.batch_size, args.his_len))
     r_true_token = (r_random_flip < r_eta)
 
     random_flip = np.random.random_sample(
-        (args.batch_size, args.total_length - args.input_length))
+        (args.batch_size, args.total_length - args.his_len))
     true_token = (random_flip < eta)
 
     h, w = args.grid_size
     
-    ones = np.ones((h, w, args.img_channel))
-    zeros = np.zeros((h, w, args.img_channel))
+    ones = np.ones((h, w, args.grid_size[0]))
+    zeros = np.zeros((h, w, args.grid_size[0]))
 
     real_input_flag = []
     for i in range(args.batch_size):
         for j in range(args.total_length):
-            if j < args.input_length:
+            if j < args.his_len:
                 if r_true_token[i, j]:
                     real_input_flag.append(ones)
                 else:
                     real_input_flag.append(zeros)
             else:
-                if true_token[i, j - args.input_length]:
+                if true_token[i, j - args.his_len]:
                     real_input_flag.append(ones)
                 else:
                     real_input_flag.append(zeros)
@@ -49,5 +49,36 @@ def reserve_schedule_sampling_exp(args, itr, max_iter):
                                   args.total_length,
                                   h,
                                   w,
-                                  args.img_channel))
+                                  args.grid_size[0]))
+    return real_input_flag
+
+def schedule_sampling_exp(args, itr, max_iter):
+    if itr < max_iter // 2:
+        eta = 1.0 - (itr / (max_iter // 2))
+    else:
+        eta = 0.0
+
+    random_flip = np.random.random_sample(
+        (args.batch_size, args.pred_len))
+    true_token = (random_flip < eta)
+
+    h, w = args.grid_size
+    
+    ones = np.ones((h, w, args.grid_size[0]))
+    zeros = np.zeros((h, w, args.grid_size[0]))
+
+    real_input_flag = []
+    for i in range(args.batch_size):
+        for j in range(args.pred_len):
+            if true_token[i, j]:
+                real_input_flag.append(ones)
+            else:
+                real_input_flag.append(zeros)
+    real_input_flag = np.array(real_input_flag)
+    real_input_flag = np.reshape(real_input_flag,
+                                 (args.batch_size,
+                                  args.pred_len,
+                                  h,
+                                  w,
+                                  args.grid_size[1]))
     return real_input_flag
