@@ -20,6 +20,9 @@ all.*
 
 test0.py
 test1.py
+test2.py
+test3.py
+test4.py
 data1.csv 
 checkpoints/
 
@@ -28,3 +31,6 @@ checkpoints/
 
 results
 results/
+
+*.pth
+*.h5

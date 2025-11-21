@@ -64,8 +64,8 @@ def schedule_sampling_exp(args, itr, max_iter):
 
     h, w = args.grid_size
     
-    ones = np.ones((h, w, args.grid_size[0]))
-    zeros = np.zeros((h, w, args.grid_size[0]))
+    ones = np.ones((args.input_channels, h, w))
+    zeros = np.zeros((args.input_channels, h, w))
 
     real_input_flag = []
     for i in range(args.batch_size):
@@ -78,7 +78,7 @@ def schedule_sampling_exp(args, itr, max_iter):
     real_input_flag = np.reshape(real_input_flag,
                                  (args.batch_size,
                                   args.pred_len,
+                                  args.input_channels,
                                   h,
-                                  w,
-                                  args.grid_size[1]))
+                                  w))
     return real_input_flag

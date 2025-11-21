@@ -5,3 +5,5 @@ xarray
 cfgrib
 torch 
 scikit-learn
+matplotlib
+h5py

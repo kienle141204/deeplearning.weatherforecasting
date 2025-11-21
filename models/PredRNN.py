@@ -27,15 +27,15 @@ class Model(nn.Module):
                                    kernel_size=1, stride=1, padding=0, bias=False)
 
 
-    def forward(self, frames_past):
+    def forward(self, frames_past, mask_true=None, ground_truth=None):
         frames = frames_past.contiguous()
 
         batch = frames.shape[0]
         height = frames.shape[3]
         width = frames.shape[4]
-        input_length = frames.shape[1]
+        input_length = self.configs.his_len
         
-        total_sim_steps = self.configs.his_len + self.configs.pred_len - 1 
+        total_sim_steps = self.configs.his_len + self.configs.pred_len
 
         next_frames = []
         h_t = []; c_t = []
@@ -49,6 +49,15 @@ class Model(nn.Module):
 
         # Vòng lặp chính
         for t in range(total_sim_steps):
+            if self.configs.scheduled_sampling and ground_truth is not None and mask_true is not None:
+                batch_size = ground_truth.shape[0]
+                mask_true = mask_true[:batch_size, :, :, :, :]
+                if t < input_length:
+                    net = frames[:, t]
+                else:
+                    mask_true_t = mask_true[:, t - self.configs.his_len, :, :, :]
+                    ground_truth_frame = ground_truth[:, t - self.configs.his_len, :, :, :]
+                    net = mask_true_t * ground_truth_frame + (1 - mask_true_t) * x_gen
             if t < input_length:
                 net = frames[:, t]
             else:
@@ -62,7 +71,7 @@ class Model(nn.Module):
 
             x_gen = self.conv_last(h_t[self.num_layers - 1])
             
-            if t >= input_length - 1:
+            if t >= input_length:
                 next_frames.append(x_gen)
 
         # [batch, L_pred, H, W, C]
