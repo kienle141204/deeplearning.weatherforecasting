@@ -7,6 +7,7 @@ __pycache__/
 
 test.py
 test1.py
+test2.py
 data.*
 logs/
 *.log
@@ -22,7 +23,9 @@ test0.py
 test1.py
 test2.py
 test3.py
+*.png
 test4.py
+test_visualize.py
 data1.csv 
 checkpoints/
 

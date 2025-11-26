@@ -9,6 +9,7 @@ import warnings
 import os 
 from utils.metrics import metric
 from utils.schedule_sampling import schedule_sampling_exp, reserve_schedule_sampling_exp
+from utils.visualize import visualize, visualize_frame
 
 # Bỏ qua tất cả các cảnh báo
 warnings.filterwarnings('ignore')
@@ -190,6 +191,9 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
         torch.save(best_model.state_dict(), best_model_path)
 
     def test(self, setting, test=0):
+        folder_path = f'./results/{self.args.model}/' + setting + '/'
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
         test_loader, test_data = self._get_data(flag='test')
         if test:
             print("Loading Model")
@@ -230,13 +234,36 @@ class Exp_Long_Term_Forecasting(Exp_Basic):
 
                 preds.append(pred)
                 trues.append(true)
+                if i % 10 == 0:
+                    # print("shape")
+                    # print(batch_x_mark.shape, batch_y_mark.shape)
+                    # print(batch_x_mark[0, :, :].shape, batch_y_mark[0, :, :].shape)
+                    # print(batch_x_mark[0, 0, :].detach().cpu().numpy())
+                    visualize(
+                        historical_data=batch_x[0, :, 0, 0, 0].detach().cpu().numpy(),
+                        true_data=true[0, :, 0, 0, 0],
+                        predicted_data=pred[0, :, 0, 0, 0],
+                        x_mark=batch_x_mark[0, :, :].detach().cpu().numpy(),
+                        y_mark=batch_y_mark[0, :, :].detach().cpu().numpy(),
+                        title=f"Test Sample {i} - Weather - Forecasting",
+                        xlabel="Time Steps",
+                        ylabel="Value",
+                        save_path=f"./results/{self.args.model}/{setting}/forecast_sample_{i}.png"
+                    )
+                    visualize_frame(
+                        historical_data=batch_x[0, :, 0, :, :].detach().cpu().numpy(),
+                        true_data=batch_y[0, :, 0, :, :],   
+                        predicted_data=outputs[0, :, 0, :, :],
+                        x_mark=batch_x_mark[0, :, :].detach().cpu().numpy(),
+                        y_mark=batch_y_mark[0, :, :].detach().cpu().numpy(),
+                        title=f"Test Sample {i} - Weather - Spatio-Temporal Forecasting",
+                        # xlabel="Future Time Steps",
+                        save_path=f"./results/{self.args.model}/{setting}/weather_spatiotemporal_sample_{i}.png"
+                    )
         
         preds = np.concatenate(preds, axis=0)
         trues = np.concatenate(trues, axis=0)
 
-        folder_path = './results/' + setting + '/'
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
         
         mae, mse, rmse, mape= metric(preds, trues)
         print('mse:{}, mae:{}, rmse:{}, mape: {}'.format(mse, mae, rmse, mape))
