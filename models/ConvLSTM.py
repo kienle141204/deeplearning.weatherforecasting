@@ -8,6 +8,7 @@ class Model(ModelBase):
     def __init__(self, configs):
         super(Model, self).__init__()
         
+        self.model_name = "ConvLSTM"
         self.input_channels = configs.input_channels
         self.hidden_channels = configs.hidden_channels
         self.kernel_size = configs.kernel_size
@@ -15,6 +16,7 @@ class Model(ModelBase):
         self.bias = configs.bias
         self.batch_first = configs.batch_first
         self.predict_steps = configs.pred_len
+        self.use_multi_heads = configs.use_multi_heads
         self.configs = configs
 
         # Channel groups info
@@ -35,18 +37,19 @@ class Model(ModelBase):
         
         self.cell_list = nn.ModuleList(cell_list)
 
-        self.output_conv = nn.Conv2d(
-            in_channels=self.hidden_channels[-1],
-            out_channels=self.input_channels,
-            kernel_size=1,
-            padding=0
-        )
-
-        # 4 Heads
-        self.head_std = nn.Conv2d(self.hidden_channels[-1], self.num_std, kernel_size=1, stride=1, padding=0) if self.num_std > 0 else None
-        self.head_minmax = nn.Conv2d(self.hidden_channels[-1], self.num_minmax, kernel_size=1, stride=1, padding=0) if self.num_minmax > 0 else None
-        self.head_robust = nn.Conv2d(self.hidden_channels[-1], self.num_robust, kernel_size=1, stride=1, padding=0) if self.num_robust > 0 else None
-        self.head_tcc = nn.Conv2d(self.hidden_channels[-1], self.num_tcc, kernel_size=1, stride=1, padding=0) if self.num_tcc > 0 else None
+        if self.use_multi_heads == 0:
+            self.output_conv = nn.Conv2d(
+                in_channels=self.hidden_channels[-1],
+                out_channels=self.input_channels,
+                kernel_size=1,
+                padding=0
+            )
+        else: 
+            # 4 Heads
+            self.head_std = nn.Conv2d(self.hidden_channels[-1], self.num_std, kernel_size=1, stride=1, padding=0) if self.num_std > 0 else None
+            self.head_minmax = nn.Conv2d(self.hidden_channels[-1], self.num_minmax, kernel_size=1, stride=1, padding=0) if self.num_minmax > 0 else None
+            self.head_robust = nn.Conv2d(self.hidden_channels[-1], self.num_robust, kernel_size=1, stride=1, padding=0) if self.num_robust > 0 else None
+            self.head_tcc = nn.Conv2d(self.hidden_channels[-1], self.num_tcc, kernel_size=1, stride=1, padding=0) if self.num_tcc > 0 else None
 
     def _apply_heads(self, hidden_state):
         outputs = []

@@ -9,7 +9,6 @@ test.py
 test1.py
 test2.py
 data.*
-logs/
 *.log
 .DS_Store
 output.*
@@ -37,3 +36,8 @@ results/
 
 *.pth
 *.h5
+
+wandb
+wandb/
+
+*.log
